@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <link rel="icon" type="image/x-icon" href="./src/assets/favicon.ico">
+    <title>明日方舟寻访记录</title>
+</head>
+<body>
+<header class="fake-menu">
+    <span class="fake-menu-item" onclick="handleReload()">重置</span>
+    <div class="window-controls">
+        <button class="win-btn" id="minBtn">🗕</button>
+        <button class="win-btn" id="maxBtn">🗖</button>
+        <button class="win-btn close" id="closeBtn">✖</button>
+    </div>
+</header>
+<div id="loginContainer"
+     style="width:100%;height:100vh;display:flex;align-items:center;justify-content:center;
+            background:linear-gradient(45deg,#b6ecb6,#ffffff,#b6ecb6,#ffffff);background-size:400% 400%;
+            animation:gradient 12s ease infinite;">
+    <!-- 登录卡片 -->
+    <mdui-card variant="elevated"
+               style="width:320px;padding:40px 32px 48px;border-radius:24px;
+                    background:rgba(255,255,255,.75);backdrop-filter:blur(12px);
+                    box-shadow:0 8px 32px rgba(0,0,0,.08);">
+        <!-- Logo 区域 -->
+        <div style="text-align:center;margin-bottom:24px">
+            <img src="./src/assets/images/logo.jpg"
+                 style="width:96px;height:96px;border-radius:50%;box-shadow:0 4px 12px rgba(0,0,0,.15);" />
+        </div>
+
+        <!-- 标题 -->
+        <div style="text-align:center;color:#00796b;margin-bottom:32px;font-family: '0xProto Nerd Font Mono'">登录明日方舟官方账号</div>
+
+        <!-- 输入框 -->
+        <mdui-text-field id="phone"
+                         label="手机号"
+                         placeholder="请输入手机号"
+                         type="tel"
+                         maxlength="11"
+                         variant="outlined"
+                         style="width:100%;margin-bottom:20px;">
+        </mdui-text-field>
+
+        <mdui-text-field id="password"
+                         label="密码"
+                         placeholder="请输入密码"
+                         type="password"
+                         variant="outlined"
+                         style="width:100%;margin-bottom:8px">
+        </mdui-text-field>
+
+        <!-- 错误提示 -->
+        <mdui-typo-caption id="loginError"
+                           style="color:#f44336;height:20px;display:block;marginBottom:12px">
+        </mdui-typo-caption>
+
+        <!-- 登录按钮 -->
+        <mdui-button id="loginBtn"
+                     class="loginBtn"
+                     full-width
+                     size="large"
+                     onclick="login()">登录
+        </mdui-button>
+    </mdui-card>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+    <div class="loading-content">
+        <div class="loading-logo"></div>
+        <div class="loading-text">加载寻访记录中...</div>
+        <mdui-linear-progress class="loading-progress"></mdui-linear-progress>
+    </div>
+</div>
+
+<h1>明日方舟寻访记录</h1>
+<div class="pool-selector" id="poolSelector" style="display:none;"></div>
+<div class="chart-container" id="chartContainer" style="display:none;"></div>
+<div class="rare-chars" id="rareCharsContainer" style="display:none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
+<script src="https://unpkg.com/mdui@2/mdui.global.js"></script>
+
+<script src="./src/script.js" type="module"></script>
+</body>
+</html>
+
+<style>
+    #loginContainer {
+        opacity: 0;
+        transition: opacity 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+    }
+
+    #loginContainer.show {
+        opacity: 1;
+    }
+
+    .loginBtn {
+        background:#b6ecb6;
+        border-radius:12px;
+        font-family: '0xProto Nerd Font Mono';
+        color: black;
+    }
+
+    @keyframes shake {
+        10%, 90% { transform: translate3d(-1px, 0, 0); }
+        20%, 80% { transform: translate3d(2px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+        40%, 60% { transform: translate3d(3px, 0, 0); }
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(45deg, #b6ecb6, #ffffff, #b6ecb6, #ffffff);
+        background-size: 400% 400%;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+        will-change: transform, opacity;
+    }
+
+    .loading-content {
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 20px;
+    }
+
+    .loading-logo {
+        width: 200px; height: 200px; border-radius: 50%;
+        background-image: url("./src/assets/images/logo.jpg");
+        background-size: cover; background-repeat: no-repeat; background-position: center;
+        transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        will-change: transform, opacity;
+    }
+
+    .loading-text {
+        font-size: 18px; color: #00796b; font-weight: bold;
+        transition: all 0.4s ease-out; will-change: transform, opacity;
+    }
+
+    .loading-progress {
+        width: 100%; z-index: 1000; --mdui-color-primary: 0, 121, 107;
+        transition: all 0.4s ease-out; will-change: transform, opacity;
+    }
+
+    h1, .pool-selector, .chart-container, .rare-chars {
+        opacity: 0; transform: translateY(20px); transition: all 0.5s ease-out;
+    }
+
+    body {
+        font-family: Arial, sans-serif; text-align: center;
+        margin: 0;
+        padding: 0; 
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        background: linear-gradient(45deg, #b6ecb6, #ffffff, #b6ecb6, #ffffff);
+        background-size: 400% 400%;
+        animation: gradient 12s ease infinite;
+        --wails-draggable:drag
+    }
+
+    @keyframes gradient {
+        0% { background-position: 0 50%; }
+        25% { background-position: 100% 50%; }
+        50% { background-position: 100% 100%; }
+        75% { background-position: 0 100%; }
+        100% { background-position: 0 50%; }
+    }
+
+    .pool-selector {
+        margin: 20px 0; max-width: 90%; overflow-x: auto; white-space: nowrap;
+    }
+
+    .chart-container {
+        margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; position: relative;
+    }
+
+    .chart-container canvas {
+        width: 320px; height: 300px; position: relative;
+        filter: drop-shadow(5px 5px 10px rgba(0, 0, 0, 0.2));
+    }
+
+    .rare-chars {
+        margin-top: 40px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;
+    }
+
+    .fake-menu {
+        margin-top: 20px;
+        border: rgba(131, 131, 131, 0.1) solid 1px;
+        border-radius: 15px;
+        height: 32px;
+        background: white;
+        color: #000000;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        font-size: 14px;
+        user-select: none;
+    }
+    .fake-menu-item {
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+    .fake-menu-item:hover {
+        background: rgba(131, 131, 131, 0.1);
+        transition: background 0.25s ease;
+    }
+    .window-controls {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+    }
+
+    .win-btn {
+        background: transparent;
+        border: none;
+        color: #000000;
+        font-size: 16px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .win-btn:hover {
+        background: rgba(131, 131, 131, 0.1);
+        transition: background 0.25s ease;
+    }
+</style>
