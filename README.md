@@ -1,46 +1,32 @@
-# README
+# Arknights Gacha Recorder (官服抽卡记录桌面端)
 
-## About
+[![Built with Wails](https://img.shields.io/badge/Built%20with-Wails-1ac3f5.svg)](https://wails.io)[![Go Version](https://img.shields.io/badge/Go-%3E%3D1.20-00ADD8.svg)](https://go.dev)[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-This is the official Wails Vanilla template.
+一个极简、安全、完全离线的明日方舟**官服**抽卡记录桌面端管理工具。  
+利用官服公开 API 拉取 30 天内抽卡记录，本地存储、本地分析，**无需登录、无账号风险**。
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+## 开发指南（wails v2）
 
-## Live Development
+### 前置要求
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+- Go ≥ 1.20
+- Node.js ≥ 18
+- wails CLI
 
-## Building
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
 
-To build a redistributable, production mode package, use `wails build`.
+## 技术栈
 
-## Arknights Gacha Integration
+**后端**: Go + Wails v2
 
-This app integrates the original Go backend logic via Wails.
+**前端**: HTML + CSS + JavaScript + MDUI
 
-Setup:
-- Ensure .env contains PHONE and PASSWORD (already copied).
-- Do NOT commit .env (now ignored in .gitignore).
+**打包**: wails build
 
-Backend:
-- The Go method App.RefreshGachaHistory() fetches full gacha history and returns grouped JSON by pool name.
-- Logic moved to: app.go and utils/, global/.
+## TODO
 
-Frontend:
-- Generated bindings live in frontend/wailsjs/go/main/App.js after generation.
-
-Local Development (commands to run manually):
-- go mod tidy
-- wails generate
-- wails dev
-
-Build:
-- wails build
-
-Notes:
-- If the Refresh button shows "绑定方法尚未生成"，please run "wails generate" first.
-- Large JSON may render slowly; consider paging/filtering if needed.
+- 前端升级成 Vue + Ts
+- 用户界面体验改善
+- 等等......
