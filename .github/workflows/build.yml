@@ -22,7 +22,7 @@ jobs:
             platform:  'windows/amd64'
             os: 'windows-latest'
           - name: 'Go_Arknights_Gacha_App'
-            platform:  'darwin/universal'
+            platform:  'darwin/amd64'
             os: 'macos-latest'
 
     runs-on: ${{ matrix.build.os }}
