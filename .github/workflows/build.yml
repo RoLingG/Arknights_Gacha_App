@@ -17,10 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - name: 'Go_Arknights_Gacha_App'
+          - name: 'Go_Arknights_Gacha_App_Linux'
             platform:  'linux/amd64'
             os: 'ubuntu-latest'
-          - name: 'Go_Arknights_Gacha_App'
+          - name: 'Go_Arknights_Gacha_App_Windows'
             platform:  'windows/amd64'
             os: 'windows-latest'
     runs-on: ${{ matrix.build.os }}
