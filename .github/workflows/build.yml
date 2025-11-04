@@ -3,27 +3,27 @@ name: Wails build
 on:
   push:
     tags:
+    # Match any new tag
       - '*'
 
 env:
+  # Necessary for most environments as build failure can occur due to OOM issues
   NODE_OPTIONS: "--max-old-space-size=4096"
 
 jobs:
   build:
     strategy:
+    # Failure in one platform build won't impact the others
       fail-fast: false
       matrix:
-        include:
-          - name: Go_Arknights_Gacha_App_Linux
-            platform: linux/amd64
-            os: ubuntu-latest
-            ext: ''          # Linux 无后缀
-          - name: Go_Arknights_Gacha_App_Windows
-            platform: windows/amd64
-            os: windows-latest
-            ext: '.exe'      # Windows 加后缀
-    runs-on: ${{ matrix.os }}
-
+        build:
+          - name: 'Go_Arknights_Gacha_App_Linux'
+            platform:  'linux/amd64'
+            os: 'ubuntu-latest'
+          - name: 'Go_Arknights_Gacha_App_Windows'
+            platform:  'windows/amd64'
+            os: 'windows-latest'
+    runs-on: ${{ matrix.build.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,31 +32,16 @@ jobs:
 
       - name: Build wails
         uses: dAppServer/wails-build-action@main
+        id: build
         with:
-          build-name: ${{ matrix.name }}
-          build-platform: ${{ matrix.platform }}
-          package: false          # 我们自己掌控上传/发布
+          build-name: ${{ matrix.build.name }}
+          build-platform: ${{ matrix.build.platform }}
+          package: true
           go-version: '1.23'
 
-      # ===== 1. 重命名（仅 Windows） =====
-      - name: Rename Windows binary to .exe
-        if: matrix.ext == '.exe'
-        shell: pwsh
-        run: |
-          $src = Get-Item "build/bin/${{ matrix.name }}/${{ matrix.name }}"
-          Move-Item -Path $src.FullName -Destination "$($src.FullName)${{ matrix.ext }}"
-
-      # ===== 2. 上传 artifact =====
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: build/bin/${{ matrix.name }}/${{ matrix.name }}${{ matrix.ext }}
-
-      # ===== 3. 发布 Release =====
       - name: Release
         if: startsWith(github.ref,'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/${{ matrix.name }}/${{ matrix.name }}${{ matrix.ext }}
-          body: "Release ${{ github.ref_name }}"
+          files: build/bin/*
+          body: "Automated release for ${{ github.ref_name }}."
