@@ -6,6 +6,8 @@
 利用官服公开 API 拉取 30 天内抽卡记录，本地存储、本地分析。
 
 > 此项目是Web版的重构，意在能够让用户开箱直用。
+>
+> 但目前 Workflows 自动双平台打包不完善，Windows 系统用户还请下载完对应桌面端之后自行加上 `.exe` 后缀打开使用。另外 Mac 系统暂时没适配。
 
 ## 开发指南（wails v2.10）
 
@@ -25,8 +27,11 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 **前端**: HTML + CSS + JavaScript + MDUI
 
-## TODO
+## Todo
 
 - 前端升级成 Vue + Ts
 - 用户UI界面体验改善
+- Workflows 自动化打包优化
+- 适配 Mac 系统
+- 解决桌面端代码签名问题
 - 等等......
