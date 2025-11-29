@@ -1,100 +1,88 @@
 name: Wails build
 
+# 仅在打 Tag 时触发构建
 on:
   push:
     tags:
-      - '*'
+      - '*' # 匹配任何新 Tag
 
+# 环境变量：增加内存限制，避免 OOM
 env:
-  NODE_OPTIONS: '--max-old-space-size=4096'
+  NODE_OPTIONS: "--max-old-space-size=4096"
 
 jobs:
   build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
     strategy:
+      # 任何平台构建失败都不会影响其他平台的构建
       fail-fast: false
       matrix:
-        include:
-          # Linux
-          - name: Linux
-            os: ubuntu-latest
-            platform: linux/amd64
-            suffix: linux
+        build:
+          - name: 'Linux'
+            platform: 'linux/amd64'
+            os: 'ubuntu-latest'
+          - name: 'Windows'
+            platform: 'windows/amd64'
+            os: 'windows-latest'
+          # 新增 macOS 构建
+          - name: 'macOS'
+            platform: 'darwin/universal'
+            os: 'macos-latest'
 
-          # Windows
-          - name: Windows
-            os: windows-latest
-            platform: windows/amd64
-            suffix: windows
-
-          # macOS Universal (Intel + Apple Silicon)
-          - name: macOS
-            os: macos-latest
-            platform: darwin/universal
-            suffix: darwin
+    runs-on: ${{ matrix.build.os }}
 
     steps:
-      - name: Checkout
+      - name: ⚙️ Checkout Repository
+        # 使用 v4 稳定版本
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: 🔨 Build Wails App (${{ matrix.build.name }})
+        # 建议使用 v2.2 稳定版本
+        uses: dAppServer/wails-build-action@v2.2
+        id: build
         with:
-          go-version: '1.23'
+          # 使用一个统一的应用名，Wails 会自动添加平台后缀
+          build-name: 'Go_Arknights_Gacha_App'
+          build-platform: ${{ matrix.build.platform }}
+          # 您的需求是发布 Release，所以 package 应该设置为 true
+          package: true
+          go-version: '1.23' # 保持您的 Go 版本
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-
-      - name: Cache frontend deps
-        uses: actions/cache@v4
-        with:
-          path: frontend/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Clean old builds
-        shell: bash
-        run: rm -rf build/bin/*
-
-      - name: Build
-        run: |
-          wails build \
-            --platform ${{ matrix.platform }} \
-            -o Go_Arknights_Gacha_App
-
-      # 上传产物供 Release 作业集中发布
-      - name: Upload artifact
+      - name: 📦 Upload Build Artifact
+        # 将构建结果作为 Artifact 上传，以便 Release 步骤使用
         uses: actions/upload-artifact@v4
         with:
-          name: Go_Arknights_Gacha_App-${{ matrix.suffix }}
+          name: ${{ matrix.build.name }}-build
           path: build/bin/*
+          # 仅保留产物一天，避免占用过多空间
+          retention-days: 1
 
   release:
+    # 仅在 build 任务完成后执行
     needs: build
+    # 仅在 Tag Push 触发时执行
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+
     steps:
-      - name: Download all artifacts
+      - name: ⬇️ Download All Build Artifacts
+        # 下载上一步中所有平台的构建产物
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create Release
+      - name: 🚀 Create GitHub Release
+        # 使用 v2 稳定版本
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*        # 递归上传所有平台产物
-          body: 'Automated release for ${{ github.ref_name }}.'
-          draft: false
-          prerelease: false
+          files: artifacts/**/* # 匹配下载目录中的所有文件
+          body: |
+            Automated Release for **${{ github.ref_name }}**
+
+            ### Changes
+            
+            # (在此处可以添加更详细的 Release Notes)
+
+          # 确保有权限上传文件
+          token: ${{ secrets.GITHUB_TOKEN }}
