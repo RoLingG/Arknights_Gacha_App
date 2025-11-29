@@ -52,69 +52,51 @@ jobs:
           path: build/bin/*
           retention-days: 1
 
-  release:
-    # 仅在 build 任务完成后执行
-    needs: build
-    # 仅在 Tag Push 触发时执行
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+release:
+  needs: build
+  if: startsWith(github.ref, 'refs/tags/')
+  runs-on: ubuntu-latest
 
-    permissions:
-      contents: write
+  permissions:
+    contents: write
 
-    steps:
-      - name: ⬇️ Download All Build Artifacts
-        # 使用 v4 稳定版本下载 Artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+  steps:
+    - name: ⬇️ Download All Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
 
-      - name: 🔄 Rename Artifacts for Unique Asset Names
-        run: |
-          # 遍历 artifacts 目录下的所有 Artifact 文件夹 (e.g., Linux-build, Windows-build)
-          for dir_path in artifacts/*; do
-            # 确保这是一个目录
-            if [ -d "$dir_path" ]; then
-          
-              # 获取 Artifact 文件夹名 (e.g., Linux-build)
-              DIR_NAME=$(basename "$dir_path")
-              # 提取平台名 (e.g., Linux-build -> Linux)
-              # 使用 cut 命令代替 sed，更简洁
-              PLATFORM=$(echo "$DIR_NAME" | cut -d'-' -f1) 
-          
-              # 遍历该 Artifact 文件夹下的所有文件
-              # 默认情况下，wails-build-action 生成的文件就在这里，
-              # 因为 upload-artifact 的 path 是 build/bin/*
-              # 如果 Wails 生成了子目录，请使用 "$dir_path"/*/* 递归查找
-              for file_path in "$dir_path"/*; do
-                if [ -f "$file_path" ]; then
-                  # 获取原始文件名 (e.g., Go_Arknights_Gacha_App.exe)
-                  ORIGINAL_NAME=$(basename "$file_path")
-          
-                  # 构造新的唯一文件名
-                  NEW_NAME="${PLATFORM}_${ORIGINAL_NAME}"
-          
-                  echo "Renaming $ORIGINAL_NAME from $DIR_NAME to artifacts/$NEW_NAME"
-                  # 移动并重命名到 artifacts 根目录
-                  mv "$file_path" "artifacts/$NEW_NAME"
-                fi
-              done
-          
-              # 清理空的 Artifact 目录
-              rmdir "$dir_path" || true
-            fi
-          done
-        shell: bash
+    - name: 🔄 Rename Artifacts for Unique Asset Names
+      shell: bash
+      run: |
+        for dir_path in artifacts/*; do
+          if [ -d "$dir_path" ]; then
+            DIR_NAME=$(basename "$dir_path")
+            PLATFORM=$(echo "$DIR_NAME" | cut -d'-' -f1) 
+        
+            for file_path in "$dir_path"/*; do
+              if [ -f "$file_path" ]; then
+                ORIGINAL_NAME=$(basename "$file_path")
+                NEW_NAME="${PLATFORM}_${ORIGINAL_NAME}"
+        
+                echo "Renaming $ORIGINAL_NAME from $DIR_NAME to artifacts/$NEW_NAME"
+                mv "$file_path" "artifacts/$NEW_NAME"
+              fi
+            done
+            rmdir "$dir_path" || true
+          fi
+        done
 
-      - name: 🚀 Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-            files: artifacts/**/*
-            token: ${{ secrets.GITHUB_TOKEN }}
-            overwrite: true
-            body: |
-              Automated Release for **${{ github.ref_name }}**
-              
-              ### 包含的平台
-              - Linux (x64)
-              - Windows (x64)
+    - name: 🚀 Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: artifacts/*
+        token: ${{ secrets.GITHUB_TOKEN }}
+        # 【修复 1】使用正确的参数名
+        overwrite_files: true
+        body: |
+          Automated Release for **${{ github.ref_name }}**
+          
+          ### 包含的平台
+          - Linux (x64)
+          - Windows (x64)
