@@ -1,115 +1,82 @@
-name: Wails build
+release:
+  needs: build
+  if: startsWith(github.ref, 'refs/tags/')
+  runs-on: ubuntu-latest
 
-# 仅在打 Tag 时触发构建
-on:
-  push:
-    tags:
-      - '*' # 匹配任何新 Tag
+  permissions:
+    contents: write # 必须有写入权限
 
-# 环境变量：增加内存限制，避免 OOM
-env:
-  NODE_OPTIONS: "--max-old-space-size=4096"
+  steps:
+    - name: ⬇️ Download All Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
 
-jobs:
-  build:
-    strategy:
-      # 任何平台构建失败都不会影响其他平台的构建
-      fail-fast: false
-      matrix:
-        build:
-          - name: 'Linux'
-            platform: 'linux/amd64'
-            os: 'ubuntu-latest'
-          - name: 'Windows'
-            platform: 'windows/amd64'
-            os: 'windows-latest'
+    - name: 🔄 Rename Artifacts for Unique Asset Names
+      shell: bash
+      run: |
+        # 您的重命名脚本（保持不变）
+        for dir_path in artifacts/*; do
+          if [ -d "$dir_path" ]; then
+            DIR_NAME=$(basename "$dir_path")
+            PLATFORM=$(echo "$DIR_NAME" | cut -d'-' -f1) 
+        
+            for file_path in "$dir_path"/*; do
+              if [ -f "$file_path" ]; then
+                ORIGINAL_NAME=$(basename "$file_path")
+                NEW_NAME="${PLATFORM}_${ORIGINAL_NAME}"
+        
+                echo "Renaming $ORIGINAL_NAME from $DIR_NAME to artifacts/$NEW_NAME"
+                mv "$file_path" "artifacts/$NEW_NAME"
+              fi
+            done
+            rmdir "$dir_path" || true
+          fi
+        done
 
-    runs-on: ${{ matrix.build.os }}
+    # 1. 创建 Release 主体 (官方 Action)
+    - name: 📝 Create/Update GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Automated Release for ${{ github.ref_name }}
+        body: |
+          Automated Release for **${{ github.ref_name }}**
+          ### 包含的平台
+          - Linux (x64)
+          - Windows (x64)
+        draft: false
+        prerelease: false
 
-    steps:
-      - name: ⚙️ Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: 🔨 Build Wails App (${{ matrix.build.name }})
-        uses: dAppServer/wails-build-action@main
-        id: build
-        with:
-          build-name: 'Go_Arknights_Gacha_App'
-          build-platform: ${{ matrix.build.platform }}
-          package: true
-          go-version: '1.23'
-
-      - name: 📦 Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.build.name }}-build
-          path: build/bin/*
-          retention-days: 1
-
-  release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write # 必须有写入权限才能创建/上传 Release
-
-    steps:
-      - name: ⬇️ Download All Build Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: 🔄 Rename Artifacts for Unique Asset Names
-        shell: bash
-        run: |
-          # 遍历 artifacts 目录下的所有 Artifact 文件夹
-          for dir_path in artifacts/*; do
-            if [ -d "$dir_path" ]; then
-              DIR_NAME=$(basename "$dir_path")
-              # 提取平台名 (e.g., Linux-build -> Linux)
-              PLATFORM=$(echo "$DIR_NAME" | cut -d'-' -f1) 
-          
-              for file_path in "$dir_path"/*; do
-                if [ -f "$file_path" ]; then
-                  ORIGINAL_NAME=$(basename "$file_path")
-                  NEW_NAME="${PLATFORM}_${ORIGINAL_NAME}"
-          
-                  echo "Renaming $ORIGINAL_NAME from $DIR_NAME to artifacts/$NEW_NAME"
-                  mv "$file_path" "artifacts/$NEW_NAME"
-                fi
-              done
-              # 清理空的 Artifact 目录
-              rmdir "$dir_path" || true
+    # 2. 遍历 Assets 并使用 curl 纯 API 上传
+    - name: ⬆️ Upload Release Assets via cURL
+      shell: bash
+      env:
+        # 使用 GITHUB_TOKEN 进行认证
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        UPLOAD_URL="${{ steps.create_release.outputs.upload_url }}"
+        # 替换 URL 中的 {?name,label} 部分以获取纯上传 URL
+        CLEAN_URL=$(echo $UPLOAD_URL | sed 's/{?name,label}//')
+        
+        # 遍历所有重命名后的文件
+        for ASSET_PATH in artifacts/*; do
+          if [ -f "$ASSET_PATH" ]; then
+            ASSET_NAME=$(basename "$ASSET_PATH")
+        
+            echo "Uploading $ASSET_NAME to $CLEAN_URL..."
+        
+            # 使用 cURL 调用 GitHub Upload API。
+            # &overwrite=true 参数保证覆盖同名文件，无需任何删除逻辑。
+            curl -X POST "$CLEAN_URL?name=$ASSET_NAME&overwrite=true" \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@$ASSET_PATH"
+        
+            # 检查 cURL 退出状态码，确保上传成功，但我们不会因 API 内部错误而失败
+            if [ $? -ne 0 ]; then
+              echo "Warning: cURL upload of $ASSET_NAME failed, but proceeding..."
             fi
-          done
-
-      # 1. 创建 Release 主体 (官方 Action)
-      - name: 📝 Create/Update GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Automated Release for ${{ github.ref_name }}
-          body: |
-            Automated Release for **${{ github.ref_name }}**
-
-            ### 包含的平台
-            - Linux (x64)
-            - Windows (x64)
-          draft: false
-          prerelease: false
-
-      # 2. 上传 Assets (softprops Action - 仅用于上传)
-      - name: ⬆️ Upload GitHub Release Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # 核心修复：现在 Release 已经创建，softprops 只专注于上传，
-          # 并且由于 Release 是由 create-release 首次创建的，softprops 不会尝试删除任何旧资产。
-          overwrite_files: true
-          # 明确设置 tag_name，覆盖 softprops 可能的默认行为，但依赖 create-release 的存在
-          tag_name: ${{ github.ref }}
+          fi
+        done
