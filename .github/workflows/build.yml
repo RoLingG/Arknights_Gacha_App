@@ -69,11 +69,33 @@ jobs:
         with:
           path: artifacts
 
+      - name: 🔄 Rename Artifacts for Unique Asset Names
+        # 这个步骤将确保每个文件都带上平台名，避免上传冲突
+        run: |
+          # 遍历下载目录中的所有子目录 (例如 Linux-build, Windows-build, etc.)
+          for dir in artifacts/*/; do
+            if [ -d "$dir/build/bin" ]; then
+              # 查找 build/bin 中的可执行文件或压缩包
+              for file in "$dir/build/bin"/*; do
+                if [ -f "$file" ]; then
+                  # 提取平台名 (e.g., Linux-build -> Linux)
+                  PLATFORM=$(basename $dir | sed 's/-build//')
+                  # 构造新的唯一文件名
+                  NEW_NAME="${PLATFORM}_$(basename $file)"
+                  echo "Renaming $file to artifacts/$NEW_NAME"
+                  # 移动并重命名到 artifacts 根目录
+                  mv "$file" "artifacts/$NEW_NAME"
+                fi
+              done
+            fi
+          done
+
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
             files: artifacts/**/*
             token: ${{ secrets.GITHUB_TOKEN }}
+            overwrite: true
             body: |
               Automated Release for **${{ github.ref_name }}**
               
