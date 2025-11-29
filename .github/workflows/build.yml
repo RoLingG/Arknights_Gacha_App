@@ -63,6 +63,35 @@ jobs:
       contents: write
 
     steps:
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
+
+      - name: 🧹 Purge Existing Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME=${{ github.ref_name }}
+          # 检查 Release 是否存在
+          if gh release view $TAG_NAME &>/dev/null; then
+              echo "Release $TAG_NAME found. Deleting all existing assets..."
+          
+              # 列出所有 Assets 的 ID 和名称
+              ASSETS=$(gh api repos/${{ github.repository }}/releases/tags/$TAG_NAME/assets | jq -r '.[] | .id')
+          
+              if [ -n "$ASSETS" ]; then
+                  echo "Found assets to delete: $ASSETS"
+                  for ASSET_ID in $ASSETS; do
+                      echo "Deleting asset ID $ASSET_ID..."
+                      # 调用 API 删除资产
+                      gh api --method DELETE /repos/${{ github.repository }}/releases/assets/$ASSET_ID
+                  done
+              else
+                  echo "No assets to delete."
+              fi
+          else
+              echo "Release $TAG_NAME does not exist. Skipping purge."
+          fi
+
       - name: ⬇️ Download All Build Artifacts
         # 使用 v4 稳定版本下载 Artifact
         uses: actions/download-artifact@v4
@@ -103,50 +132,15 @@ jobs:
               rmdir "$dir_path" || true
             fi
           done
-
-      # 1. 创建 Release 并获取 Release ID
-      - name: 📝 Create/Update GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Automated Release for ${{ github.ref_name }}
+          files: artifacts/**/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+          overwrite_files: true
           body: |
             Automated Release for **${{ github.ref_name }}**
-
+            
             ### 包含的平台
             - Linux (x64)
             - Windows (x64)
-          draft: false
-          prerelease: false
-
-      # 2. 遍历 Artifacts 并逐个上传
-      # 使用官方 Action actions/upload-release-asset@v1
-      - name: ⬆️ Upload Release Assets
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/* # 匹配所有重命名后的唯一文件
-          asset_name: $(basename ${{ github.workspace }}/artifacts/*) # 此行需要配合 Bash 循环替换
-          asset_content_type: ''
-
-        # 为了更健壮，我们使用 Bash 循环逐个调用 upload-release-asset
-        run: |
-          UPLOAD_URL="${{ steps.create_release.outputs.upload_url }}"
-          
-          # 遍历所有重命名后的文件
-          for ASSET_PATH in artifacts/*; do
-            if [ -f "$ASSET_PATH" ]; then
-              ASSET_NAME=$(basename "$ASSET_PATH")
-          
-              echo "Uploading $ASSET_NAME..."
-          
-              # 调用 upload-release-asset 的核心逻辑（使用 curl）
-              /usr/bin/curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Content-Type: application/octet-stream" \
-                --data-binary "@$ASSET_PATH" \
-                "$UPLOAD_URL?name=$ASSET_NAME&overwrite=true"
-            fi
-          done
