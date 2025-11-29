@@ -50,12 +50,10 @@ jobs:
           go-version: '1.23' # 保持您的 Go 版本
 
       - name: 📦 Upload Build Artifact
-        # 将构建结果作为 Artifact 上传，以便 Release 步骤使用
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.build.name }}-build
           path: build/bin/*
-          # 仅保留产物一天，避免占用过多空间
           retention-days: 1
 
   release:
@@ -67,8 +65,7 @@ jobs:
 
     steps:
       - name: ⬇️ Download All Build Artifacts
-        # 下载上一步中所有平台的构建产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4 # <-- 特别检查这里！
         with:
           path: artifacts
 
