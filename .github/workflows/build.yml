@@ -33,67 +33,31 @@ jobs:
           submodules: recursive
 
       - name: 🔨 Build Wails App (${{ matrix.build.name }})
-        # 【关键点】根据您的经验，使用 @main 确保获得最新的依赖修复
         uses: dAppServer/wails-build-action@main
         id: build
         with:
-          # 使用一个统一的应用名，Wails 会自动添加平台后缀
           build-name: 'Go_Arknights_Gacha_App'
           build-platform: ${{ matrix.build.platform }}
           package: true
           go-version: '1.23'
 
       - name: 📦 Upload Build Artifact
-        # 使用 v4 稳定版本上传 Artifact
         uses: actions/upload-artifact@v4
         with:
-          # 使用 matrix.build.name 作为 Artifact 名称
           name: ${{ matrix.build.name }}-build
           path: build/bin/*
           retention-days: 1
 
   release:
-    # 仅在 build 任务完成后执行
     needs: build
-    # 仅在 Tag Push 触发时执行
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: write # 必须有写入权限才能创建/上传 Release
 
     steps:
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
-
-      - name: 🧹 Purge Existing Release Assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG_NAME=${{ github.ref_name }}
-          # 检查 Release 是否存在
-          if gh release view $TAG_NAME &>/dev/null; then
-              echo "Release $TAG_NAME found. Deleting all existing assets..."
-          
-              # 列出所有 Assets 的 ID 和名称
-              ASSETS=$(gh api repos/${{ github.repository }}/releases/tags/$TAG_NAME/assets | jq -r '.[] | .id')
-          
-              if [ -n "$ASSETS" ]; then
-                  echo "Found assets to delete: $ASSETS"
-                  for ASSET_ID in $ASSETS; do
-                      echo "Deleting asset ID $ASSET_ID..."
-                      # 调用 API 删除资产
-                      gh api --method DELETE /repos/${{ github.repository }}/releases/assets/$ASSET_ID
-                  done
-              else
-                  echo "No assets to delete."
-              fi
-          else
-              echo "Release $TAG_NAME does not exist. Skipping purge."
-          fi
-
       - name: ⬇️ Download All Build Artifacts
-        # 使用 v4 稳定版本下载 Artifact
         uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -101,30 +65,19 @@ jobs:
       - name: 🔄 Rename Artifacts for Unique Asset Names
         shell: bash
         run: |
-          # 遍历 artifacts 目录下的所有 Artifact 文件夹 (e.g., Linux-build, Windows-build)
+          # 遍历 artifacts 目录下的所有 Artifact 文件夹
           for dir_path in artifacts/*; do
-            # 确保这是一个目录
             if [ -d "$dir_path" ]; then
-              # 获取 Artifact 文件夹名 (e.g., Linux-build)
               DIR_NAME=$(basename "$dir_path")
               # 提取平台名 (e.g., Linux-build -> Linux)
-              # 使用 cut 命令代替 sed，更简洁
               PLATFORM=$(echo "$DIR_NAME" | cut -d'-' -f1) 
           
-              # 遍历该 Artifact 文件夹下的所有文件
-              # 默认情况下，wails-build-action 生成的文件就在这里，
-              # 因为 upload-artifact 的 path 是 build/bin/*
-              # 如果 Wails 生成了子目录，请使用 "$dir_path"/*/* 递归查找
               for file_path in "$dir_path"/*; do
                 if [ -f "$file_path" ]; then
-                  # 获取原始文件名 (e.g., Go_Arknights_Gacha_App.exe)
                   ORIGINAL_NAME=$(basename "$file_path")
-          
-                  # 构造新的唯一文件名
                   NEW_NAME="${PLATFORM}_${ORIGINAL_NAME}"
           
                   echo "Renaming $ORIGINAL_NAME from $DIR_NAME to artifacts/$NEW_NAME"
-                  # 移动并重命名到 artifacts 根目录
                   mv "$file_path" "artifacts/$NEW_NAME"
                 fi
               done
@@ -132,15 +85,31 @@ jobs:
               rmdir "$dir_path" || true
             fi
           done
-      - name: 🚀 Create GitHub Release
+
+      # 1. 创建 Release 主体 (官方 Action)
+      - name: 📝 Create/Update GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Automated Release for ${{ github.ref_name }}
+          body: |
+            Automated Release for **${{ github.ref_name }}**
+
+            ### 包含的平台
+            - Linux (x64)
+            - Windows (x64)
+          draft: false
+          prerelease: false
+
+      # 2. 上传 Assets (softprops Action - 仅用于上传)
+      - name: ⬆️ Upload GitHub Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           token: ${{ secrets.GITHUB_TOKEN }}
+          # 核心修复：现在 Release 已经创建，softprops 只专注于上传，
+          # 并且由于 Release 是由 create-release 首次创建的，softprops 不会尝试删除任何旧资产。
           overwrite_files: true
-          body: |
-            Automated Release for **${{ github.ref_name }}**
-            
-            ### 包含的平台
-            - Linux (x64)
-            - Windows (x64)
+          # 明确设置 tag_name，覆盖 softprops 可能的默认行为，但依赖 create-release 的存在
+          tag_name: ${{ github.ref }}
