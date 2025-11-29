@@ -70,25 +70,41 @@ jobs:
           path: artifacts
 
       - name: 🔄 Rename Artifacts for Unique Asset Names
-        # 这个步骤将确保每个文件都带上平台名，避免上传冲突
         run: |
-          # 遍历下载目录中的所有子目录 (例如 Linux-build, Windows-build, etc.)
-          for dir in artifacts/*/; do
-            if [ -d "$dir/build/bin" ]; then
-              # 查找 build/bin 中的可执行文件或压缩包
-              for file in "$dir/build/bin"/*; do
-                if [ -f "$file" ]; then
-                  # 提取平台名 (e.g., Linux-build -> Linux)
-                  PLATFORM=$(basename $dir | sed 's/-build//')
+          # 遍历 artifacts 目录下的所有 Artifact 文件夹 (e.g., Linux-build, Windows-build)
+          for dir_path in artifacts/*; do
+            # 确保这是一个目录
+            if [ -d "$dir_path" ]; then
+          
+              # 获取 Artifact 文件夹名 (e.g., Linux-build)
+              DIR_NAME=$(basename "$dir_path")
+              # 提取平台名 (e.g., Linux-build -> Linux)
+              # 使用 cut 命令代替 sed，更简洁
+              PLATFORM=$(echo "$DIR_NAME" | cut -d'-' -f1) 
+          
+              # 遍历该 Artifact 文件夹下的所有文件
+              # 默认情况下，wails-build-action 生成的文件就在这里，
+              # 因为 upload-artifact 的 path 是 build/bin/*
+              # 如果 Wails 生成了子目录，请使用 "$dir_path"/*/* 递归查找
+              for file_path in "$dir_path"/*; do
+                if [ -f "$file_path" ]; then
+                  # 获取原始文件名 (e.g., Go_Arknights_Gacha_App.exe)
+                  ORIGINAL_NAME=$(basename "$file_path")
+          
                   # 构造新的唯一文件名
-                  NEW_NAME="${PLATFORM}_$(basename $file)"
-                  echo "Renaming $file to artifacts/$NEW_NAME"
+                  NEW_NAME="${PLATFORM}_${ORIGINAL_NAME}"
+          
+                  echo "Renaming $ORIGINAL_NAME from $DIR_NAME to artifacts/$NEW_NAME"
                   # 移动并重命名到 artifacts 根目录
-                  mv "$file" "artifacts/$NEW_NAME"
+                  mv "$file_path" "artifacts/$NEW_NAME"
                 fi
               done
+          
+              # 清理空的 Artifact 目录
+              rmdir "$dir_path" || true
             fi
           done
+        shell: bash
 
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2
