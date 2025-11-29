@@ -23,7 +23,6 @@ jobs:
           - name: 'Windows'
             platform: 'windows/amd64'
             os: 'windows-latest'
-          # 新增 macOS 构建
           - name: 'macOS'
             platform: 'darwin/universal'
             os: 'macos-latest'
@@ -32,26 +31,26 @@ jobs:
 
     steps:
       - name: ⚙️ Checkout Repository
-        # 使用 v4 稳定版本
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: 🔨 Build Wails App (${{ matrix.build.name }})
-        # 建议使用 v2.2 稳定版本
-        uses: dAppServer/wails-build-action@v2.2
+        # 【关键点】根据您的经验，使用 @main 确保获得最新的依赖修复
+        uses: dAppServer/wails-build-action@main
         id: build
         with:
           # 使用一个统一的应用名，Wails 会自动添加平台后缀
           build-name: 'Go_Arknights_Gacha_App'
           build-platform: ${{ matrix.build.platform }}
-          # 您的需求是发布 Release，所以 package 应该设置为 true
           package: true
-          go-version: '1.23' # 保持您的 Go 版本
+          go-version: '1.23'
 
       - name: 📦 Upload Build Artifact
+        # 使用 v4 稳定版本上传 Artifact
         uses: actions/upload-artifact@v4
         with:
+          # 使用 matrix.build.name 作为 Artifact 名称
           name: ${{ matrix.build.name }}-build
           path: build/bin/*
           retention-days: 1
@@ -65,21 +64,21 @@ jobs:
 
     steps:
       - name: ⬇️ Download All Build Artifacts
-        uses: actions/download-artifact@v4 # <-- 特别检查这里！
+        # 使用 v4 稳定版本下载 Artifact
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
       - name: 🚀 Create GitHub Release
-        # 使用 v2 稳定版本
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/* # 匹配下载目录中的所有文件
           body: |
             Automated Release for **${{ github.ref_name }}**
 
-            ### Changes
-            
-            # (在此处可以添加更详细的 Release Notes)
+            ### 包含的平台
+            - Linux (x64)
+            - Windows (x64)
+            - macOS (Universal)
 
-          # 确保有权限上传文件
           token: ${{ secrets.GITHUB_TOKEN }}
